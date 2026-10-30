@@ -1,43 +1,74 @@
-version: '3'
+version: '3.8'
 
 services:
-  client:
-    build: client
-    container_name: client
+  # ========================================================
+  # MongoDB Database Service
+  # ========================================================
+  mongo:
+    image: mongo:4.4
+    container_name: mern-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_DATABASE=mern_ecommerce
+    volumes:
+      - mongo-data:/data/db
     ports:
-      - '8080:8080'
+      - "27017:27017"
     networks:
       - app-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
+  # ========================================================
+  # Backend Express API Service
+  # ========================================================
   server:
-    build: server
-    container_name: server
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-mern-ecommerce}/server:${IMAGE_TAG:-latest}
+    container_name: mern-server
+    restart: unless-stopped
     environment:
       - PORT=3000
       - BASE_API_URL=api
       - CLIENT_URL=http://localhost:8080
-      - JWT_SECRET=update_your_JWT_secret
-      - MONGO_URI=mongodb://mongo:27017/mern_ecommerce # Default Mongo URL & DB name when running project locally
+      - JWT_SECRET=${JWT_SECRET:-supersecretjwtkeyforlocaldevelopment12345}
+      - MONGO_URI=mongodb://mongo:27017/mern_ecommerce
     ports:
-      - '3000:3000'
-    command: [
-        'sh',
-        '-c',
-        'npm run seed:db admin@example.com admin123 && npm start'
-      ] # Default email and password arguments to database seed script - update your admin email and password
+      - "3000:3000"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     networks:
       - app-network
 
-  mongo:
-    image: mongo:latest
-    container_name: mongodb
-    command: mongod --quiet --logpath /dev/null
+  # ========================================================
+  # Frontend React / NGINX Service
+  # ========================================================
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - API_URL=http://localhost:3000/api
+    image: ${DOCKER_REGISTRY:-mern-ecommerce}/client:${IMAGE_TAG:-latest}
+    container_name: mern-client
+    restart: unless-stopped
     ports:
-      - '27017:27017'
+      - "8080:8080"
+    depends_on:
+      - server
     networks:
       - app-network
+
+volumes:
+  mongo-data:
+    driver: local
 
 networks:
   app-network:
