@@ -8,10 +8,13 @@
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "seed:db": "cd server && npm run seed:db",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "lint": "node -c server/index.js && node -c server/routes/index.js && node -c client/webpack/webpack.common.js && echo Syntax validation passed",
     "postinstall": "npm-run-all --parallel install:*",
     "install:client": "cd client && npm install",
-    "install:server": "cd server && npm install",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "install:server": "cd server && npm install"
   },
   "repository": {
     "type": "git",
