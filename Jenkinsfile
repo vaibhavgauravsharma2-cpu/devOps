@@ -287,6 +287,58 @@ pipeline {
                 }
             }
         }
+
+        // ========================================================
+        // Stage 11: Kubernetes Deploy
+        // ========================================================
+        stage('Kubernetes Deploy') {
+            when {
+                allOf {
+                    expression { return fileExists('k8s/namespace.yaml') }
+                    expression { return params.DEPLOY_LOCAL }
+                }
+            }
+            steps {
+                echo "=========================================================="
+                echo " Stage 11: Deploying to Kubernetes (minikube)"
+                echo "=========================================================="
+                script {
+                    // Replace placeholder image names with actual registry values
+                    if (isUnix()) {
+                        sh """
+                            sed -i 's|DOCKERHUB_USERNAME|${params.DOCKERHUB_USERNAME}|g' k8s/server-deployment.yaml
+                            sed -i 's|DOCKERHUB_USERNAME|${params.DOCKERHUB_USERNAME}|g' k8s/client-deployment.yaml
+                            kubectl apply -f k8s/namespace.yaml || true
+                            kubectl apply -f k8s/mongo-deployment.yaml   -n mern-ecommerce
+                            kubectl apply -f k8s/server-deployment.yaml  -n mern-ecommerce
+                            kubectl apply -f k8s/client-deployment.yaml  -n mern-ecommerce
+                            kubectl apply -f k8s/prometheus-deployment.yaml -n mern-ecommerce
+                            kubectl apply -f k8s/grafana-deployment.yaml    -n mern-ecommerce
+                            echo "Waiting for server rollout..."
+                            kubectl rollout status deployment/mern-server  -n mern-ecommerce --timeout=120s || true
+                            kubectl rollout status deployment/mern-client  -n mern-ecommerce --timeout=120s || true
+                            kubectl get pods -n mern-ecommerce
+                        """
+                    } else {
+                        bat """
+                            kubectl apply -f k8s\\namespace.yaml
+                            kubectl apply -f k8s\\mongo-deployment.yaml   -n mern-ecommerce
+                            kubectl apply -f k8s\\server-deployment.yaml  -n mern-ecommerce
+                            kubectl apply -f k8s\\client-deployment.yaml  -n mern-ecommerce
+                            kubectl apply -f k8s\\prometheus-deployment.yaml -n mern-ecommerce
+                            kubectl apply -f k8s\\grafana-deployment.yaml    -n mern-ecommerce
+                            kubectl get pods -n mern-ecommerce
+                        """
+                    }
+                }
+            }
+            post {
+                failure {
+                    echo "Kubernetes deploy failed — check kubectl connectivity and cluster status."
+                    echo "For minikube: run 'minikube status' to verify cluster is running."
+                }
+            }
+        }
     }
 
     // ============================================================
@@ -303,10 +355,13 @@ pipeline {
             echo "=========================================================="
             echo " SUCCESS: CI/CD Pipeline Completed Successfully!         "
             echo " Application deployed and accessible at:                  "
-            echo "   - Frontend UI:  http://localhost:8080                  "
-            echo "   - Backend API:  http://localhost:3000                  "
-            echo "   - Docker Image: ${env.SERVER_IMAGE}:${env.IMAGE_TAG}   "
-            echo "   - Docker Image: ${env.CLIENT_IMAGE}:${env.IMAGE_TAG}   "
+            echo "   - Frontend UI:       http://localhost:8080             "
+            echo "   - Backend API:       http://localhost:3000             "
+            echo "   - Prometheus:        http://localhost:9090             "
+            echo "   - Grafana Dashboard: http://localhost:3001             "
+            echo "   - K8s Client:        minikube service mern-client-service -n mern-ecommerce --url"
+            echo "   - Docker Image:      ${env.SERVER_IMAGE}:${env.IMAGE_TAG}"
+            echo "   - Docker Image:      ${env.CLIENT_IMAGE}:${env.IMAGE_TAG}"
             echo "=========================================================="
         }
         failure {

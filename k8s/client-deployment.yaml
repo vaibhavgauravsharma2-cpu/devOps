@@ -1,0 +1,66 @@
+# ============================================================
+# React / NGINX Client Deployment + Service (NodePort)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mern-client
+  namespace: mern-ecommerce
+  labels:
+    app: mern-client
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mern-client
+  template:
+    metadata:
+      labels:
+        app: mern-client
+    spec:
+      containers:
+        - name: mern-client
+          image: DOCKERHUB_USERNAME/mern-client:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mern-client-service
+  namespace: mern-ecommerce
+  labels:
+    app: mern-client
+spec:
+  selector:
+    app: mern-client
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+  type: NodePort
